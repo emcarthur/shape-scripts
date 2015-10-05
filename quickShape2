@@ -1,0 +1,120 @@
+#!/bin/bash
+
+startdir=$(pwd)
+cflag=
+cval=
+rflag=
+rval=
+fflag=
+fval=
+oflag=
+oval=
+nflag=
+nval=
+dflag=
+
+usage="\nquickShape - Evonne McArthur - updated 09/2015\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data\n"
+
+
+while getopts "dn:o:c:r:f:" OPTION
+do
+    case $OPTION in
+        c)
+	    cflag=1
+	    cval=$OPTARG
+            ;;
+        r)
+            rflag=1
+	    rval=$OPTARG
+            ;;
+	f)
+	    fflag=1
+	    fval=$OPTARG
+            ;;
+	o)
+	    oflag=1
+            oval=$OPTARG
+	    ;;
+	n)
+	    nflag=1
+	    nval=$OPTARG
+	    ;;
+	d)
+	    dflag=1
+	    ;;
+        \?)
+            echo -e "$usage"
+            exit 2
+            ;;
+    esac
+done
+
+if [ -z "$cflag" ]; then
+	echo "Did not provide chromosome information!"
+	echo -e "$usage"
+	exit
+fi
+
+if [ -z "$rflag" ]; then
+	echo "Did not provide region information!"
+	echo -e "$usage"
+	exit
+fi
+
+mkdir /home/emcarthur/transcriptome/output/
+if [ ! -z "$dflag" ]; then
+	echo "Calculating depth of chr: $cval pos: $rval ... "
+	samtools depth -r chr$cval:$rval /home/emcarthur/transcriptome/runFiles/PR.sorted.bam > /home/emcarthur/transcriptome/output/PR.depth
+	echo -e "\nPR depth:"
+	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/emcarthur/transcriptome/output/PR.depth
+
+	samtools depth -r chr$cval:$rval /home/emcarthur/transcriptome/runFiles/MR.sorted.bam > /home/emcarthur/transcriptome/output/MR.depth
+	echo "MR depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/emcarthur/transcriptome/output/MR.depth
+
+	samtools depth -r chr$cval:$rval /home/emcarthur/transcriptome/runFiles/DC.sorted.bam > /home/emcarthur/transcriptome/output/DC.depth
+	echo "DC depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/emcarthur/transcriptome/output/DC.depth
+	
+	echo -e "\nDepth at nucleotide level also output"
+
+else
+	echo "Setting up files to run ShapeMap..."
+	samtools view /home/emcarthur/transcriptome/runFiles/PR.sorted.bam chr$cval:$rval > /home/emcarthur/transcriptome/outPR.sam
+	samtools view /home/emcarthur/transcriptome/runFiles/MR.sorted.bam chr$cval:$rval > /home/emcarthur/transcriptome/outMR.sam
+	samtools view /home/emcarthur/transcriptome/runFiles/DC.sorted.bam chr$cval:$rval > /home/emcarthur/transcriptome/outDC.sam
+
+	cat /home/emcarthur/transcriptome/outPR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/emcarthur/transcriptome/PR.fastq
+	cat /home/emcarthur/transcriptome/outMR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/emcarthur/transcriptome/MR.fastq
+	cat /home/emcarthur/transcriptome/outDC.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/emcarthur/transcriptome/DC.fastq
+	
+	rm /home/emcarthur/transcriptome/out*.sam
+	
+
+
+	samtools faidx /home/emcarthur/transcriptome/runFiles/hg19.fa "chr"$cval:$rval > /home/emcarthur/transcriptome/tmp.fa
+
+	echo ">tmpName" > /home/emcarthur/transcriptome/tmpName.fa
+	tail -n +2 /home/emcarthur/transcriptome/tmp.fa  >> /home/emcarthur/transcriptome/tmpName.fa
+	rm /home/emcarthur/transcriptome/tmp.fa
+
+	cd /home/emcarthur/transcriptome/
+	
+	
+	echo "Starting ShapeMap Pipeline..."
+	ShapeMapper.py config_file.cfg
+	rm -rf temp
+	
+	cd $startdir
+	mv /home/emcarthur/transcriptome/log.txt .
+	rm /home/emcarthur/transcriptome/temp_config.pickle
+	rm /home/emcarthur/transcriptome/*.fastq
+	rm /home/emcarthur/transcriptome/tmpName.fa
+
+fi
+
+if [ ! -z "$oflag" ]; then
+	mv /home/emcarthur/transcriptome/output ./$oval
+else
+	mv /home/emcarthur/transcriptome/output ./output
+fi

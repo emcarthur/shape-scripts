@@ -1,0 +1,187 @@
+#!/bin/bash
+
+startdir=$(pwd)
+cflag=
+cval=
+rflag=
+rval=
+fflag=
+fval=
+oflag=
+oval=
+nflag=
+nval=
+dflag=
+aflag=
+aval=
+bflag=
+bval=
+mflag=
+mval=
+
+usage="\nquickShape - Evonne McArthur - 06/2015\n\nUsage:\n  quickShape -c <int> -r <int>-<int> -f <fastaFile.fa> [options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n  -f          fasta file for region of interest (do not need if running with -d paramater on)\n\nOther options:\n  -n          name of output for shapemap (default: fastafile name)
+  -o          output folder name (default: "output")\n  -d          only output depth of the region, will not run shapemap pipeline, no not need a fa file"
+
+
+while getopts "a:b:n:o:c:r:m:" OPTION
+do
+    case $OPTION in
+        c)
+	    cflag=1
+	    cval=$OPTARG
+            ;;
+        r)
+            rflag=1
+	    rval=$OPTARG
+            ;;
+	o)
+	    oflag=1
+            oval=$OPTARG
+	    ;;
+	n)
+	    nflag=1
+	    nval=$OPTARG
+	    ;;
+	a)
+	    aflag=1
+	    aval=$OPTARG
+	    ;;
+	b)
+	   bflag=1
+	   bval=$OPTARG
+	   ;;
+	m)
+	   mflag=1
+	   mval=$OPTARG
+	   ;;
+        \?)
+            echo -e "$usage"
+            exit 2
+            ;;
+    esac
+done
+
+if [ -z "$cflag" ]; then
+	echo "Did not provide chromosome information!"
+	echo -e "$usage"
+	exit
+fi
+
+if [ -z "$rflag" ]; then
+	echo "Did not provide region information!"
+	echo -e "$usage"
+	exit
+fi
+
+if [ -z "$mflag"]; then
+	echo "Did not provide mutation rate!"
+        echo -e "$usage"
+        exit
+fi
+
+if [ -z "$aflag"]; then
+        echo "Did not provide reference allele!"
+        echo -e "$usage"
+        exit
+fi
+
+if [ -z "$bflag"]; then
+        echo "Did not provide alternate allele!"
+        echo -e "$usage"
+        exit
+fi
+
+
+#mkdir /home/emcarthur/transcriptome/output/
+
+head -n 86 /home/emcarthur/transcriptome/runFiles/PR.sam > /home/emcarthur/transcriptome/outPR.sam
+head -n 86 /home/emcarthur/transcriptome/runFiles/PR.sam > /home/emcarthur/transcriptome/outMR.sam
+head -n 86 /home/emcarthur/transcriptome/runFiles/PR.sam > /home/emcarthur/transcriptome/outDC.sam
+rmin=$(($rval-200))
+rmax=$(($rval+200))
+samtools view /home/emcarthur/transcriptome/runFiles/PR.sorted.bam chr$cval:$rmin-$rmax >> /home/emcarthur/transcriptome/outPR.sam
+samtools view /home/emcarthur/transcriptome/runFiles/MR.sorted.bam chr$cval:$rmin-$rmax >> /home/emcarthur/transcriptome/outMR.sam
+samtools view /home/emcarthur/transcriptome/runFiles/DC.sorted.bam chr$cval:$rmin-$rmax >> /home/emcarthur/transcriptome/outDC.sam
+
+samtools view -bS /home/emcarthur/transcriptome/outPR.sam > /home/emcarthur/transcriptome/outPR.bam
+samtools view -bS /home/emcarthur/transcriptome/outMR.sam > /home/emcarthur/transcriptome/outMR.bam
+samtools view -bS /home/emcarthur/transcriptome/outDC.sam > /home/emcarthur/transcriptome/outDC.bam
+
+samtools sort /home/emcarthur/transcriptome/outPR.bam /home/emcarthur/transcriptome/outPR.sorted
+samtools sort /home/emcarthur/transcriptome/outMR.bam /home/emcarthur/transcriptome/outMR.sorted
+samtools sort /home/emcarthur/transcriptome/outDC.bam /home/emcarthur/transcriptome/outDC.sorted
+
+samtools index /home/emcarthur/transcriptome/outPR.sorted.bam
+samtools index /home/emcarthur/transcriptome/outMR.sorted.bam
+samtools index /home/emcarthur/transcriptome/outDC.sorted.bam
+
+python /home/emcarthur/transcriptome/splitReads.py $aval $bval $mval "chr"$cval $rval
+
+
+
+
+rm /home/emcarthur/transcriptome/out*.sam
+rm /home/emcarthur/transcriptome/out*.bam
+rm /home/emcarthur/transcriptome/out*.bam.bai
+rm /home/emcarthur/transcriptome/tmp.fa
+rm /home/emcarthur/transcriptome/tmpName.fa
+
+samtools faidx /home/emcarthur/transcriptome/runFiles/hg19.fa "chr"$cval:$rmin-$rmax  > /home/emcarthur/transcriptome/tmp.fa
+
+echo ">tmpName" > /home/emcarthur/transcriptome/tmpName.fa
+tail -n +2 /home/emcarthur/transcriptome/tmp.fa  >> /home/emcarthur/transcriptome/tmpName.fa
+rm /home/emcarthur/transcriptome/tmp.fa
+
+head -n 4 /home/emcarthur/transcriptome/tmpName.fa > /home/emcarthur/transcriptome/tmpRef.fa
+head -n 4 /home/emcarthur/transcriptome/tmpName.fa > /home/emcarthur/transcriptome/tmpAlt.fa
+head -n 5 /home/emcarthur/transcriptome/tmpName.fa | tail -n 1 - | cut -c1-20 >> /home/emcarthur/transcriptome/tmpRef.fa
+head -n 5 /home/emcarthur/transcriptome/tmpName.fa | tail -n 1 - | cut -c1-20 >> /home/emcarthur/transcriptome/tmpAlt.fa
+echo $aval >> /home/emcarthur/transcriptome/tmpRef.fa
+echo $bval >> /home/emcarthur/transcriptome/tmpAlt.fa
+head -n 5 /home/emcarthur/transcriptome/tmpName.fa | tail -n 1 - | cut -c22-60 >> /home/emcarthur/transcriptome/tmpRef.fa
+head -n 5 /home/emcarthur/transcriptome/tmpName.fa | tail -n 1 - | cut -c22-60 >> /home/emcarthur/transcriptome/tmpAlt.fa
+tail -n 3 /home/emcarthur/transcriptome/tmpName.fa >> /home/emcarthur/transcriptome/tmpRef.fa
+tail -n 3 /home/emcarthur/transcriptome/tmpName.fa >> /home/emcarthur/transcriptome/tmpAlt.fa
+
+cd /home/emcarthur/transcriptome/
+
+#REFERENCE shapemap
+
+mv /home/emcarthur/transcriptome/tmpRef.fa /home/emcarthur/transcriptome/tmpName.fa
+mv /home/emcarthur/transcriptome/PRref.fastq /home/emcarthur/transcriptome/PR.fastq
+mv /home/emcarthur/transcriptome/MRref.fastq /home/emcarthur/transcriptome/MR.fastq
+mv /home/emcarthur/transcriptome/DCref.fastq /home/emcarthur/transcriptome/DC.fastq
+
+ShapeMapper.py config_file.cfg
+rm -rf temp
+cd $startdir
+mv /home/emcarthur/transcriptome/log.txt .
+rm /home/emcarthur/transcriptome/temp_config.pickle
+#rm /home/emcarthur/transcriptome/*.fastq
+rm /home/emcarthur/transcriptome/tmpName.fa
+
+mv /home/emcarthur/transcriptome/output/reactivity_profiles/transcriptome_test.tab ./chr${cval}_${rval}_${aval}_ref.tab
+
+#mv /home/emcarthur/transcriptome/output/ /home/emcarthur/transcriptome/ref/
+rm -rf /home/emcarthur/transciptome/output/
+
+#ALTERNATE
+cd /home/emcarthur/transcriptome/
+
+mv /home/emcarthur/transcriptome/tmpAlt.fa /home/emcarthur/transcriptome/tmpName.fa
+mv /home/emcarthur/transcriptome/PRalt.fastq /home/emcarthur/transcriptome/PR.fastq
+mv /home/emcarthur/transcriptome/MRalt.fastq /home/emcarthur/transcriptome/MR.fastq
+mv /home/emcarthur/transcriptome/DCalt.fastq /home/emcarthur/transcriptome/DC.fastq
+
+ShapeMapper.py config_file.cfg
+rm -rf temp
+cd $startdir
+mv /home/emcarthur/transcriptome/log.txt .
+rm /home/emcarthur/transcriptome/temp_config.pickle
+rm /home/emcarthur/transcriptome/*.fastq
+rm /home/emcarthur/transcriptome/tmpName.fa
+
+mv /home/emcarthur/transcriptome/output/reactivity_profiles/transcriptome_test.tab ./chr${cval}_${rval}_${bval}_alt.tab
+
+#mv /home/emcarthur/transcriptome/output/ /home/emcarthur/transcriptome/alt/
+rm -rf /home/emcarthur/transcriptome/output
