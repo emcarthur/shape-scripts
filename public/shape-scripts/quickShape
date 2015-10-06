@@ -1,0 +1,148 @@
+#!/bin/bash
+
+if [ `ps -e | grep -c $(basename $0)` -gt 2 ]; then echo "Another instance of quickShape is running. Try again later."; exit 0; fi
+
+startdir=$(pwd)
+cflag=
+cval=
+rflag=
+rval=
+fflag=
+fval=
+oflag=
+oval=
+dflag=
+sflag=
+yflag=
+
+usage="\nquickShape - Evonne McArthur - updated 09/2015\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data\n"
+
+
+while getopts "c:r:o:df:sy" OPTION
+do
+    case $OPTION in
+        c)
+	    cflag=1
+	    cval=$OPTARG
+            ;;
+        r)
+            rflag=1
+	    rval=$OPTARG
+            ;;
+	f)
+	    fflag=1
+	    fval=$OPTARG
+            ;;
+	o)
+	    oflag=1
+            oval=$OPTARG
+	    ;;
+	s)
+	    sflag=1
+	    ;;
+	d)
+	    dflag=1
+	    ;;
+	s)
+	    sflag=1
+	    ;;
+	y)
+	    yflag=1
+	    ;;
+        \?)
+            echo -e "$usage"
+            exit 2
+            ;;
+    esac
+done
+
+if [ -z "$cflag" ]; then
+	echo "ERROR: Did not provide chromosome information!"
+	echo -e "$usage"
+	exit
+fi
+
+if [ -z "$rflag" ]; then
+	echo "ERROR: Did not provide region information!"
+	echo -e "$usage"
+	exit
+fi
+
+mkdir /home/shared/shape-scripts/output/
+if [ ! -z "$dflag" ]; then
+	echo "Calculating depth of chr: $cval pos: $rval ... "
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/PR.sorted.bam > /home/shared/shape-scripts/output/PR.depth
+	echo -e "\nPR depth:"
+	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/PR.depth
+
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/MR.sorted.bam > /home/shared/shape-scripts/output/MR.depth
+	echo "MR depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/MR.depth
+
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/DC.sorted.bam > /home/shared/shape-scripts/output/DC.depth
+	echo "DC depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/DC.depth
+	
+	echo -e "\nDepth at nucleotide level also output"
+
+else
+	echo "Setting up files to run ShapeMap..."
+	
+	if [ -z "$sflag" ] && [ -z "$yflag" ]; then
+		plus="PR"
+		minus="MR"
+		denatured="DC"
+	elif [ ! -z "$sflag" ]; then
+		plus="PS"
+		minus="MS"
+		denatured="DC"
+	elif [ ! -z "$yflag" ]; then
+		echo "ERROR: Yoruban data not available for analysis yet. Soon to come!"		
+		rm -rf output
+		exit
+	fi
+	
+	samtools view /home/shared/shape-scripts/runFiles/$plus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outPR.sam
+	samtools view /home/shared/shape-scripts/runFiles/$minus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outMR.sam
+	samtools view /home/shared/shape-scripts/runFiles/$denatured.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outDC.sam
+
+	cat /home/shared/shape-scripts/outPR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/PR.fastq
+	cat /home/shared/shape-scripts/outMR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/MR.fastq
+	cat /home/shared/shape-scripts/outDC.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/DC.fastq
+	
+	rm /home/shared/shape-scripts/out*.sam
+	
+	echo ">quickShape" > /home/shared/shape-scripts/quickShape.fa
+
+	if [ ! -z "$fflag" ]; then
+		echo "fasta file specified"
+		tail -n +2 $fval >> /home/shared/shape-scripts/quickShape.fa
+		
+	else
+		echo "fasta file not specified, creating file from hg19 sequence"
+		samtools faidx /home/shared/shape-scripts/runFiles/hg19.fa "chr"$cval:$rval > /home/shared/shape-scripts/tmp.fa
+		tail -n +2 /home/shared/shape-scripts/tmp.fa  >> /home/shared/shape-scripts/quickShape.fa
+		rm /home/shared/shape-scripts/tmp.fa
+	fi
+	
+	cd /home/shared/shape-scripts/
+	
+	
+	echo "Starting ShapeMap Pipeline..."
+	ShapeMapper.py /home/shared/shape-scripts/runFiles/config_file.cfg
+	rm -rf temp
+	
+	cd $startdir
+	mv /home/shared/shape-scripts/log.txt .
+	rm /home/shared/shape-scripts/temp_config.pickle
+	rm /home/shared/shape-scripts/*.fastq
+	rm /home/shared/shape-scripts/quickShape.fa
+
+fi
+
+if [ ! -z "$oflag" ]; then
+	mv /home/shared/shape-scripts/output ./$oval
+else
+	mv /home/shared/shape-scripts/output ./output
+fi
+
