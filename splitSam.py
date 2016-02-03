@@ -1,8 +1,10 @@
 #!/usr/env/bin python
+#splitSam.py 11/2015 E.McArthur
+
 # This function splits reads from a sam file and outputs fastq files with reads
 # for both the reference and alternate alleles at a particular SNV locus
 
-#USAGE: splitSam.py ref alt chrStr loc random? sam_file_name/list 
+#USAGE: splitSam.py ref alt chrStr loc random? sam_file_name/list samfiles?(or fastq)
 # ref = reference allele (A, C, G, T)
 # alt = alternate allele (A, C, G, T)
 # chrStr = chromosome string - this will be the name of the fasta file you 
@@ -14,9 +16,10 @@
 #	0 = reads are thrown away
 # sam_file_name/list = either a samfile name or a list of samfile names, the
 #	list must be a .txt file with each samfile name on a new row 
+# samfiles?(or fastq) = if 1 output samfiles, if 0 output fastq files, if 2 both samfile and fastq files
 
 #SAMPLE:
-# python splitSam.py G A ACTB_mRNA 231 1 M147.sam
+# python splitSam.py G A ACTB_mRNA 231 1 M147.sam 1
 
 #OTHER NOTES: 
 # the script will create bam, sorted bam, and bai files for each sam file
@@ -40,6 +43,7 @@ if sys.argv[5] == 1:
 	random = TRUE
 
 file_name = sys.argv[6]
+
 x_iter = []
 
 if file_name[-4:] == ".txt":
@@ -48,6 +52,12 @@ if file_name[-4:] == ".txt":
 		x_iter.append(rows[0])
 else:
 	x_iter = [file_name]
+
+
+if sys.argv[7] == 1 || sys.argv[7] == 2:
+	sam = TRUE
+if sys.argv[7] == 2 || sys.argv[7] == 0:
+	fastq = TRUE
 
 for x in x_iter:
 	print("File: " + str(x))
@@ -64,8 +74,11 @@ for x in x_iter:
 		os.system("samtools index " + os.path.splitext(x)[0] + ".sorted.bam")
 
 	samfile = pysam.AlignmentFile(os.path.splitext(x)[0] + ".sorted.bam","rb")
-
-
+	
+	if sam:
+		out_ref = pysam.AlignmentFile(str(os.path.splitext(x)[0]) + "_" + str(chrStr) + "_" + str(loc + 1) + "_ref_" + str(refAllele) + ".sam","w",template=samfile)
+        	out_alt = pysam.AlignmentFile(str(os.path.splitext(x)[0]) + "_" + str(chrStr) + "_" + str(loc + 1) + "_alt_" + str(altAllele) + ".sam","w",template=samfile)
+	
 	splitRef = []
 	splitAlt = []
 	count = 0.0
@@ -78,9 +91,14 @@ for x in x_iter:
 				if not pileupread.is_del:
 					count+=1
 					if pileupread.alignment.query_sequence[pileupread.query_position] == refAllele:
+						if sam:
+							out_ref.write(pileupread.alignment)
+
 						splitRef.append(pileupread.alignment.query_name)
 						countRef+=1
 					if pileupread.alignment.query_sequence[pileupread.query_position] == altAllele:
+						if sam:
+							out_alt.write(pileupread.alignment
                 	                        splitAlt.append(pileupread.alignment.query_name)
 						countAlt+=1
 
@@ -105,7 +123,7 @@ for x in x_iter:
 			else:
 				mydict[rows[0]].extend(rows[9:11])
 
-	f_ref = open(str(os.path.splitext(x)[0]) + "_" + str(chrStr) + "_" + str(loc) + "_ref_" + str(refAllele) + ".fastq","w")
+	f_ref = open(str(os.path.splitext(x)[0]) + "_" + str(chrStr) + "_" + str(loc + 1) + "_ref_" + str(refAllele) + ".fastq","w")
 	for i in splitRef:
 		if i in mydict:
 			tmp = mydict[i]
@@ -115,7 +133,7 @@ for x in x_iter:
 			del mydict[i]
 
 
-	f_alt = open(str(os.path.splitext(x)[0]) + "_" + str(chrStr) + "_" + str(loc) + "_alt_" + str(altAllele) + ".fastq","w")
+	f_alt = open(str(os.path.splitext(x)[0]) + "_" + str(chrStr) + "_" + str(loc + 1) + "_alt_" + str(altAllele) + ".fastq","w")
 	for i in splitAlt:
         	if i in mydict:
                 	tmp = mydict[i]

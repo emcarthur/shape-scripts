@@ -14,11 +14,12 @@ oval=
 dflag=
 sflag=
 yflag=
+zflag=
 
-usage="\nquickShape - Evonne McArthur - updated 09/2015\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data\n"
+usage="\nquickShape - Evonne McArthur - updated 09/2015\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099"
 
 
-while getopts "c:r:o:df:sy" OPTION
+while getopts "c:r:o:df:syz" OPTION
 do
     case $OPTION in
         c)
@@ -49,6 +50,9 @@ do
 	y)
 	    yflag=1
 	    ;;
+	z)
+	    zflag=1
+	    ;;
         \?)
             echo -e "$usage"
             exit 2
@@ -68,39 +72,47 @@ if [ -z "$rflag" ]; then
 	exit
 fi
 
+if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ]; then
+        plus="PR"
+        minus="MR"
+        denatured="DC"
+elif [ ! -z "$sflag" ]; then
+        plus="PS"
+        minus="MS"
+        denatured="DC"
+elif [ ! -z "$yflag" ]; then
+        echo "WARNING: Yoruban data still in beta mode"         
+        plus="19098PR"
+        minus="19098MR"
+        denatured="19098DC"
+elif [ ! -z "$zflag" ]; then
+        echo "WARNING: Yoruban data still in beta mode"         
+        plus="19099PR"
+        minus="19099MR"
+	denatured="19099DC"
+fi
+
 mkdir /home/shared/shape-scripts/output/
 if [ ! -z "$dflag" ]; then
+
+
 	echo "Calculating depth of chr: $cval pos: $rval ... "
-	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/PR.sorted.bam > /home/shared/shape-scripts/output/PR.depth
-	echo -e "\nPR depth:"
-	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/PR.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$plus.sorted.bam > /home/shared/shape-scripts/output/$plus.depth
+	echo -e "\nPlus depth:"
+	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$plus.depth
 
-	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/MR.sorted.bam > /home/shared/shape-scripts/output/MR.depth
-	echo "MR depth:"
-        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/MR.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$minus.sorted.bam > /home/shared/shape-scripts/output/$minus.depth
+	echo "Minus depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$minus.depth
 
-	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/DC.sorted.bam > /home/shared/shape-scripts/output/DC.depth
-	echo "DC depth:"
-        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/DC.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$denatured.sorted.bam > /home/shared/shape-scripts/output/$denatured.depth
+	echo "Denatured depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$denatured.depth
 	
 	echo -e "\nDepth at nucleotide level also output"
 
 else
 	echo "Setting up files to run ShapeMap..."
-	
-	if [ -z "$sflag" ] && [ -z "$yflag" ]; then
-		plus="PR"
-		minus="MR"
-		denatured="DC"
-	elif [ ! -z "$sflag" ]; then
-		plus="PS"
-		minus="MS"
-		denatured="DC"
-	elif [ ! -z "$yflag" ]; then
-		echo "ERROR: Yoruban data not available for analysis yet. Soon to come!"		
-		rm -rf output
-		exit
-	fi
 	
 	samtools view /home/shared/shape-scripts/runFiles/$plus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outPR.sam
 	samtools view /home/shared/shape-scripts/runFiles/$minus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outMR.sam

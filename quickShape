@@ -1,5 +1,7 @@
 #!/bin/bash
 
+if [ `ps -e | grep -c $(basename $0)` -gt 2 ]; then echo "Another instance of quickShape is running. Try again later."; exit 0; fi
+
 startdir=$(pwd)
 cflag=
 cval=
@@ -9,15 +11,15 @@ fflag=
 fval=
 oflag=
 oval=
-nflag=
-nval=
 dflag=
+sflag=
+yflag=
+zflag=
 
-usage="\nquickShape - Evonne McArthur - 06/2015\n\nUsage:\n  quickShape -c <int> -r <int>-<int> -f <fastaFile.fa> [options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n  -f          fasta file for region of interest (do not need if running with -d paramater on)\n\nOther options:\n  -n          name of output for shapemap (default: fastafile name)
-  -o          output folder name (default: "output")\n  -d          only output depth of the region, will not run shapemap pipeline, no not need a fa file"
+usage="\nquickShape - Evonne McArthur - updated 09/2015\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099"
 
 
-while getopts "dn:o:c:r:f:" OPTION
+while getopts "c:r:o:df:syz" OPTION
 do
     case $OPTION in
         c)
@@ -36,12 +38,20 @@ do
 	    oflag=1
             oval=$OPTARG
 	    ;;
-	n)
-	    nflag=1
-	    nval=$OPTARG
+	s)
+	    sflag=1
 	    ;;
 	d)
 	    dflag=1
+	    ;;
+	s)
+	    sflag=1
+	    ;;
+	y)
+	    yflag=1
+	    ;;
+	z)
+	    zflag=1
 	    ;;
         \?)
             echo -e "$usage"
@@ -51,70 +61,100 @@ do
 done
 
 if [ -z "$cflag" ]; then
-	echo "Did not provide chromosome information!"
+	echo "ERROR: Did not provide chromosome information!"
 	echo -e "$usage"
 	exit
 fi
 
 if [ -z "$rflag" ]; then
-	echo "Did not provide region information!"
+	echo "ERROR: Did not provide region information!"
 	echo -e "$usage"
 	exit
 fi
 
-if [ -z "$fflag"] && [ -z "$dflag"]; then
-	echo "Did not provide fasta file!"
-        echo -e "$usage"
-        exit
+if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ]; then
+        plus="PR"
+        minus="MR"
+        denatured="DC"
+elif [ ! -z "$sflag" ]; then
+        plus="PS"
+        minus="MS"
+        denatured="DC"
+elif [ ! -z "$yflag" ]; then
+        echo "WARNING: Yoruban data still in beta mode"         
+        plus="19098PR"
+        minus="19098MR"
+        denatured="19098DC"
+elif [ ! -z "$zflag" ]; then
+        echo "WARNING: Yoruban data still in beta mode"         
+        plus="19099PR"
+        minus="19099MR"
+	denatured="19099DC"
 fi
-mkdir /home/emcarthur/transcriptome/output/
+
+mkdir /home/shared/shape-scripts/output/
 if [ ! -z "$dflag" ]; then
+
+
 	echo "Calculating depth of chr: $cval pos: $rval ... "
-	samtools depth -r chr$cval:$rval /home/emcarthur/transcriptome/runFiles/PR.sorted.bam > /home/emcarthur/transcriptome/output/PR.depth
-	echo -e "\nPR depth:"
-	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/emcarthur/transcriptome/output/PR.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$plus.sorted.bam > /home/shared/shape-scripts/output/$plus.depth
+	echo -e "\nPlus depth:"
+	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$plus.depth
 
-	samtools depth -r chr$cval:$rval /home/emcarthur/transcriptome/runFiles/MR.sorted.bam > /home/emcarthur/transcriptome/output/MR.depth
-	echo "MR depth:"
-        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/emcarthur/transcriptome/output/MR.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$minus.sorted.bam > /home/shared/shape-scripts/output/$minus.depth
+	echo "Minus depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$minus.depth
 
-	samtools depth -r chr$cval:$rval /home/emcarthur/transcriptome/runFiles/DC.sorted.bam > /home/emcarthur/transcriptome/output/DC.depth
-	echo "DC depth:"
-        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/emcarthur/transcriptome/output/DC.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$denatured.sorted.bam > /home/shared/shape-scripts/output/$denatured.depth
+	echo "Denatured depth:"
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$denatured.depth
 	
 	echo -e "\nDepth at nucleotide level also output"
 
 else
 	echo "Setting up files to run ShapeMap..."
-	samtools view /home/emcarthur/transcriptome/runFiles/PR.sorted.bam chr$cval:$rval > /home/emcarthur/transcriptome/outPR.sam
-	samtools view /home/emcarthur/transcriptome/runFiles/MR.sorted.bam chr$cval:$rval > /home/emcarthur/transcriptome/outMR.sam
-	samtools view /home/emcarthur/transcriptome/runFiles/DC.sorted.bam chr$cval:$rval > /home/emcarthur/transcriptome/outDC.sam
-
-	cat /home/emcarthur/transcriptome/outPR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/emcarthur/transcriptome/PR.fastq
-	cat /home/emcarthur/transcriptome/outMR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/emcarthur/transcriptome/MR.fastq
-	cat /home/emcarthur/transcriptome/outDC.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/emcarthur/transcriptome/DC.fastq
 	
-	rm /home/emcarthur/transcriptome/out*.sam
-	echo ">tmpName" > /home/emcarthur/transcriptome/tmpName.fa
-	tail -n +2 $fval >> /home/emcarthur/transcriptome/tmpName.fa
+	samtools view /home/shared/shape-scripts/runFiles/$plus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outPR.sam
+	samtools view /home/shared/shape-scripts/runFiles/$minus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outMR.sam
+	samtools view /home/shared/shape-scripts/runFiles/$denatured.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outDC.sam
 
-	cd /home/emcarthur/transcriptome/
+	cat /home/shared/shape-scripts/outPR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/PR.fastq
+	cat /home/shared/shape-scripts/outMR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/MR.fastq
+	cat /home/shared/shape-scripts/outDC.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/DC.fastq
+	
+	rm /home/shared/shape-scripts/out*.sam
+	
+	echo ">quickShape" > /home/shared/shape-scripts/quickShape.fa
+
+	if [ ! -z "$fflag" ]; then
+		echo "fasta file specified"
+		tail -n +2 $fval >> /home/shared/shape-scripts/quickShape.fa
+		
+	else
+		echo "fasta file not specified, creating file from hg19 sequence"
+		samtools faidx /home/shared/shape-scripts/runFiles/hg19.fa "chr"$cval:$rval > /home/shared/shape-scripts/tmp.fa
+		tail -n +2 /home/shared/shape-scripts/tmp.fa  >> /home/shared/shape-scripts/quickShape.fa
+		rm /home/shared/shape-scripts/tmp.fa
+	fi
+	
+	cd /home/shared/shape-scripts/
 	
 	
 	echo "Starting ShapeMap Pipeline..."
-	ShapeMapper.py config_file.cfg
+	ShapeMapper.py /home/shared/shape-scripts/runFiles/config_file.cfg
 	rm -rf temp
 	
 	cd $startdir
-	mv /home/emcarthur/transcriptome/log.txt .
-	rm /home/emcarthur/transcriptome/temp_config.pickle
-	rm /home/emcarthur/transcriptome/*.fastq
-	rm /home/emcarthur/transcriptome/tmpName.fa
+	mv /home/shared/shape-scripts/log.txt .
+	rm /home/shared/shape-scripts/temp_config.pickle
+	rm /home/shared/shape-scripts/*.fastq
+	rm /home/shared/shape-scripts/quickShape.fa
 
 fi
 
 if [ ! -z "$oflag" ]; then
-	mv /home/emcarthur/transcriptome/output ./$oval
+	mv /home/shared/shape-scripts/output ./$oval
 else
-	mv /home/emcarthur/transcriptome/output ./output
+	mv /home/shared/shape-scripts/output ./output
 fi
+
