@@ -15,11 +15,18 @@ dflag=
 sflag=
 yflag=
 zflag=
+nflag=
+hflag=
+iflag=
+jflag=
+kflag=
+aflag=
+mflag=
 
-usage="\nquickShape - Evonne McArthur - updated 09/2015\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099"
+usage="\nquickShape - Evonne McArthur - updated 04/2016\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19 or hg38)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099\n  -h          Use 07037-only\n  -i          Use 07037-only sonicated\n  -j          use 12003-only\n  -k          use 12003-only sonicated\n  -m          Use new Invivo 19098 File (only available with STAR alignment)\n  -n          do NOT use denatured data to determine normalized reactivities\n  -a          use STAR alignment version of file with hg38"
 
 
-while getopts "c:r:o:df:syz" OPTION
+while getopts "c:r:o:df:syznhijkam" OPTION
 do
     case $OPTION in
         c)
@@ -53,6 +60,27 @@ do
 	z)
 	    zflag=1
 	    ;;
+	n)
+	    nflag=1
+	    ;;
+	h)
+	    hflag=1
+	    ;;
+	i)
+	    iflag=1
+	    ;;
+	j)
+	    jflag=1
+	    ;;
+	k)
+	   kflag=1
+	   ;;
+	a)
+	   aflag=1
+	   ;;
+	m)
+	   mflag=1
+	   ;;
         \?)
             echo -e "$usage"
             exit 2
@@ -72,24 +100,81 @@ if [ -z "$rflag" ]; then
 	exit
 fi
 
-if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ]; then
-        plus="PR"
-        minus="MR"
-        denatured="DC"
-elif [ ! -z "$sflag" ]; then
-        plus="PS"
-        minus="MS"
-        denatured="DC"
-elif [ ! -z "$yflag" ]; then
-        echo "WARNING: Yoruban data still in beta mode"         
-        plus="19098PR"
-        minus="19098MR"
-        denatured="19098DC"
-elif [ ! -z "$zflag" ]; then
-        echo "WARNING: Yoruban data still in beta mode"         
-        plus="19099PR"
-        minus="19099MR"
-	denatured="19099DC"
+if [ -z "$aflag"]; then
+	genomebuild="hg19"
+	if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ] && [ -z "$hflag" ] && [ -z "$iflag" ] && [ -z "$jflag" ] && [ -z "$kflag" ]; then
+		plus="PR"
+	        minus="MR"
+	        denatured="DC"
+	elif [ ! -z "$sflag" ]; then
+	       	plus="PS"
+	        minus="MS"
+	        denatured="DC"
+	elif [ ! -z "$yflag" ]; then
+	        plus="19098PR"
+	        minus="19098MR"
+	        denatured="19098DC"
+	elif [ ! -z "$hflag" ]; then         
+	        plus="NA07037_P"
+	        minus="NA07037_M"
+		denatured="NA07037_DC"
+	elif [ ! -z "$iflag" ]; then
+	        plus="NA07037_PS"
+	        minus="NA07037_MS"
+	        denatured="NA07037_DC"
+	elif [ ! -z "$jflag" ]; then
+	        plus="NA12003_P"
+	        minus="NA12003_M"
+	        denatured="NA12003_DC"
+	elif [ ! -z "$kflag" ]; then
+	        plus="NA12003_PS"
+	        minus="NA12003_MS"
+	        denatured="NA12003_DC"
+	elif [ ! -z "$zflag" ]; then
+	        plus="19099PR"
+	        minus="19099MR"
+	        denatured="19099DC"
+	elif [ ! -z "$mflag" ]; then
+		echo "Not available with hg19 bowtie alignment. Must use -a flag for STAR alignment"
+		exit
+	fi
+else
+	genomebuild="hg38"
+	if [ ! -z "$yflag" ]; then
+                plus="hg38_STAR_default_19098Plus.Aligned.out"
+                minus="hg38_STAR_default_19098Min.Aligned.out"
+                denatured="hg38_STAR_default_19098DC.Aligned.out"
+        elif [ ! -z "$hflag" ]; then
+                plus="STAR_hg38_07037_PR.Aligned.out"
+                minus="STAR_hg38_07037_MR.Aligned.out"
+                denatured="STAR_hg38_07037_DC.Aligned.out"
+        elif [ ! -z "$iflag" ]; then
+                plus="STAR_hg38_07037_PS.Aligned.out"
+                minus="STAR_hg38_07037_MS.Aligned.out"
+                denatured="STAR_hg38_07037_DC.Aligned.out"
+        elif [ ! -z "$jflag" ]; then
+		echo "12003 STAR alignment with hg38 not available yet"
+                exit
+		#plus="NA12003_P"
+                #minus="NA12003_M"
+                #denatured="NA12003_DC"
+        elif [ ! -z "$kflag" ]; then
+		echo "12003 STAR alignment with hg38 not available yet"
+                exit
+		#plus="NA12003_PS"
+                #minus="NA12003_MS"
+                #denatured="NA12003_DC"
+        elif [ ! -z "$zflag" ]; then
+                plus="hg38_STAR_default_19099Plus.Aligned.out"
+                minus="hg38_STAR_default_19099Min.Aligned.out"
+                denatured="hg38_STAR_default_19099DC.Aligned.out"	
+	elif [ ! -z "$mflag" ]; then
+                plus="hg38_STAR_YR19098P"
+                minus="hg38_STAR_YR19098M"
+                denatured="hg38_STAR_default_19099DC.Aligned.out"
+        fi
+
+
 fi
 
 mkdir /home/shared/shape-scripts/output/
@@ -131,19 +216,26 @@ else
 		tail -n +2 $fval >> /home/shared/shape-scripts/quickShape.fa
 		
 	else
-		echo "fasta file not specified, creating file from hg19 sequence"
-		samtools faidx /home/shared/shape-scripts/runFiles/hg19.fa "chr"$cval:$rval > /home/shared/shape-scripts/tmp.fa
+		echo "fasta file not specified, creating file from hg19 or hg38 sequence"
+		samtools faidx /home/shared/shape-scripts/runFiles/$genomebuild.fa "chr"$cval:$rval > /home/shared/shape-scripts/tmp.fa
 		tail -n +2 /home/shared/shape-scripts/tmp.fa  >> /home/shared/shape-scripts/quickShape.fa
 		rm /home/shared/shape-scripts/tmp.fa
 	fi
 	
 	cd /home/shared/shape-scripts/
 	
-	
-	echo "Starting ShapeMap Pipeline..."
-	ShapeMapper.py /home/shared/shape-scripts/runFiles/config_file.cfg
-	rm -rf temp
-	
+	if [ ! -z "$nflag" ]; then
+		echo "Starting ShapeMap Pipeline without denatured..."
+		/home/shared/ShapeMapper_noDenatured/ShapeMapper.py /home/shared/shape-scripts/runFiles/config_file.cfg
+                rm -rf temp
+
+	else
+		echo "Starting ShapeMap Pipeline with denatured..."
+		ShapeMapper.py /home/shared/shape-scripts/runFiles/config_file.cfg
+		rm -rf temp
+	fi	
+
+
 	cd $startdir
 	mv /home/shared/shape-scripts/log.txt .
 	rm /home/shared/shape-scripts/temp_config.pickle
