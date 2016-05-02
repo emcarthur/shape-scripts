@@ -22,7 +22,7 @@ jflag=
 kflag=
 aflag=
 
-usage="\nquickShape - Evonne McArthur - updated 04/2016\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19 or hg38)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099\n  -h          Use 07037-only\n  -i          Use 07037-only sonicated\n  -j          use 12003-only\n  -k          use 12003-only sonicated\n  -m          Use new Invivo 19098 File (only available with STAR alignment)\n  -n          do NOT use denatured data to determine normalized reactivities\n  -a          use STAR alignment version of file with hg38"
+usage="\nquickShape - Evonne McArthur - updated 04/2016\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19 or hg38)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099\n  -h          Use 07037-only\n  -i          Use 07037-only sonicated\n  -j          use 12003-only\n  -k          use 12003-only sonicated\n  -n          do NOT use denatured data to determine normalized reactivities\n  -a          use STAR alignment version of file with hg38"
 
 
 while getopts "c:r:o:df:syznhijka" OPTION
@@ -161,7 +161,15 @@ else
                 plus="hg38_STAR_default_19099Plus.Aligned.out"
                 minus="hg38_STAR_default_19099Min.Aligned.out"
                 denatured="hg38_STAR_default_19099DC.Aligned.out"
-        fi
+        elif [ ! -z "$sflag" ]; then
+		plus="hg38_STAR_default_PS_12003and07037.Aligned.out"
+                minus="hg38_STAR_default_MS_12003and07037.Aligned.out"
+                denatured="hg38_STAR_default_DC_12003and07037.Aligned.out"
+	else
+		plus="hg38_STAR_default_PR_12003and07037.Aligned.out"
+                minus="hg38_STAR_default_MR_12003and07037.Aligned.out"
+                denatured="hg38_STAR_default_DC_12003and07037.Aligned.out"	
+	fi
 
 
 fi
