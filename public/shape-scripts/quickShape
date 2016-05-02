@@ -21,12 +21,11 @@ iflag=
 jflag=
 kflag=
 aflag=
-mflag=
 
 usage="\nquickShape - Evonne McArthur - updated 04/2016\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19 or hg38)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099\n  -h          Use 07037-only\n  -i          Use 07037-only sonicated\n  -j          use 12003-only\n  -k          use 12003-only sonicated\n  -m          Use new Invivo 19098 File (only available with STAR alignment)\n  -n          do NOT use denatured data to determine normalized reactivities\n  -a          use STAR alignment version of file with hg38"
 
 
-while getopts "c:r:o:df:syznhijkam" OPTION
+while getopts "c:r:o:df:syznhijka" OPTION
 do
     case $OPTION in
         c)
@@ -77,9 +76,6 @@ do
 	   ;;
 	a)
 	   aflag=1
-	   ;;
-	m)
-	   mflag=1
 	   ;;
         \?)
             echo -e "$usage"
@@ -134,9 +130,6 @@ if [ -z "$aflag"]; then
 	        plus="19099PR"
 	        minus="19099MR"
 	        denatured="19099DC"
-	elif [ ! -z "$mflag" ]; then
-		echo "Not available with hg19 bowtie alignment. Must use -a flag for STAR alignment"
-		exit
 	fi
 else
 	genomebuild="hg38"
@@ -167,10 +160,6 @@ else
         elif [ ! -z "$zflag" ]; then
                 plus="hg38_STAR_default_19099Plus.Aligned.out"
                 minus="hg38_STAR_default_19099Min.Aligned.out"
-                denatured="hg38_STAR_default_19099DC.Aligned.out"	
-	elif [ ! -z "$mflag" ]; then
-                plus="hg38_STAR_YR19098P"
-                minus="hg38_STAR_YR19098M"
                 denatured="hg38_STAR_default_19099DC.Aligned.out"
         fi
 
