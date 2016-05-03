@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#if [ `ps -e | grep -c $(basename $0)` -gt 2 ]; then echo "Another instance of quickShape is running. Try again later."; exit 0; fi
-
 startdir=$(pwd)
 cflag=
 cval=
@@ -22,8 +20,9 @@ jflag=
 kflag=
 aflag=
 
-usage="\nquickShape - Evonne McArthur - updated 04/2016\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19 or hg38)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099\n  -h          Use 07037-only\n  -i          Use 07037-only sonicated\n  -j          use 12003-only\n  -k          use 12003-only sonicated\n  -n          do NOT use denatured data to determine normalized reactivities\n  -a          use STAR alignment version of file with hg38"
+usage="\nquickShape - Evonne McArthur - updated 05/2016\n\nRuns ShapeMap pipeline or calculates depth on specific regions within the entire transcriptome\n\nUsage:\n  quickShape -c <int> -r <int>-<int> [other options]\n\nMust specify:\n  -c          chromosome of region of interest as an integer\n  -r          nucleotide start and stop positions for region of interest as <int>-<int>\n\nOther options:\n  -o          output folder name (default: "output")\n  -d          ONLY output depth of the region, will not run shapemap pipeline\n  -f          fasta file for region of interest(if not specified will use region from hg19 or hg38)\n  -s          Use "AlmostQuad" sonicated data\n  -y          use yoruban data from 19098\n  -z          use yoruban data from 19099\n  -h          Use 07037-only\n  -i          Use 07037-only sonicated\n  -j          use 12003-only\n  -k          use 12003-only sonicated\n  -n          do NOT use denatured data to determine normalized reactivities\n  -a          use STAR alignment version of file with hg38"
 
+# PARSE FLAGS
 
 while getopts "c:r:o:df:syznhijka" OPTION
 do
@@ -84,21 +83,28 @@ do
     esac
 done
 
+# IF NO CHROMOSOME IS PROVIDED EXIT
 if [ -z "$cflag" ]; then
 	echo "ERROR: Did not provide chromosome information!"
 	echo -e "$usage"
 	exit
 fi
 
+# IF NO REGION IS PROVIDED EXIT
 if [ -z "$rflag" ]; then
 	echo "ERROR: Did not provide region information!"
 	echo -e "$usage"
 	exit
 fi
 
+# INITIALIZE UNIQUE FOLDER NAME FOR OUTPUT
 outfileString="chr"$cval:$rval
 
-if [ -z "$aflag"]; then
+
+# ASSIGN plus, minus, AND denatured VARIABLES TO THE RIGHT FILE GIVEN THE FLAGS
+
+if [ -z "$aflag" ]; then
+	# IF HG19
 	genomebuild="hg19"
 	outfileString=$outfileString"_hg19"
 	if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ] && [ -z "$hflag" ] && [ -z "$iflag" ] && [ -z "$jflag" ] && [ -z "$kflag" ]; then
@@ -143,6 +149,7 @@ if [ -z "$aflag"]; then
 		outfileString=$outfileString"_19099Refolded"
 	fi
 else
+	# IF HG38
 	genomebuild="hg38"
 	outfileString=$outfileString"_hg38"
 	if [ ! -z "$yflag" ]; then
@@ -192,6 +199,7 @@ else
 
 fi
 
+# CHECK IF THIS COMMAND IS RUNNING AND EXIT IF IT IS (MAKE OUTPUT FILE IF IT'S NOT)
 if [ -d "/home/shared/shape-scripts/$outfileString/" ]; then
 	echo "A version of this command is already running (or exists in the shape-scripts folder). Exiting.."
 	exit
@@ -199,9 +207,10 @@ else
 	mkdir /home/shared/shape-scripts/$outfileString/
 fi
 
+
 if [ ! -z "$dflag" ]; then
 
-
+	# IF D FLAG IS SPECIFIED CALCULATE AND OUTPUT DEPTH
 	echo "Calculating depth of chr: $cval pos: $rval ... "
 	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$plus.sorted.bam > /home/shared/shape-scripts/$outfileString/$plus.depth
 	echo -e "\nPlus depth:"
@@ -218,6 +227,7 @@ if [ ! -z "$dflag" ]; then
 	echo -e "\nDepth at nucleotide level also output"
 
 else
+	# IF D FLAG IS NOT SPECIFIED START SHAPEMAP
 	echo "Setting up files to run ShapeMap..."
 	
 	# EXTRACTING LINES IN SAM FILE FROM REGION TO ANOTHER FILE
@@ -233,7 +243,7 @@ else
 	# REMOVE SAMFILE SUBSETS
 	rm /home/shared/shape-scripts/$outfileString/out*.sam
 	
-	# CREATE FASTA FILE
+	# CREATE FASTA FILE IF NONE SPECIFIED OR FORMAT EXISTING FASTA FILE IF SPECIFIED
 	echo ">quickShape" > /home/shared/shape-scripts/$outfileString/quickShape.fa
 
 	if [ ! -z "$fflag" ]; then
@@ -247,6 +257,7 @@ else
 		rm /home/shared/shape-scripts/$outfileString/tmp.fa
 	fi
 	
+	# CHANGE DIRECTORY TO OUTPUT FILE AND START SHAPEMAP	
 	cd /home/shared/shape-scripts/$outfileString/
 	
 	if [ ! -z "$nflag" ]; then
@@ -260,17 +271,17 @@ else
 		rm -rf temp
 	fi	
 
-
+	# RETURN TO WORKING DIRECTORY AND CLEAN UP FILES
 	cd $startdir
 	mv /home/shared/shape-scripts/$outfileString/log.txt .
 	rm /home/shared/shape-scripts/$outfileString/temp_config.pickle
 	rm /home/shared/shape-scripts/$outfileString/*.fastq
 	rm /home/shared/shape-scripts/$outfileString/quickShape.fa
-
+	mv /home/shared/shape-scripts/$outfileString/output/* /home/shared/shape-scripts/$outfileString/
+	rm -rf /home/shared/shape-scripts/$outfileString/output/
 fi
 
-mv /home/shared/shape-scripts/$outfileString/output/* /home/shared/shape-scripts/$outfileString/
-rm -rf /home/shared/shape-scripts/$outfileString/output/
+# MOVE FILES TO WORKING DIRECTORY
 if [ ! -z "$oflag" ]; then
 	mv /home/shared/shape-scripts/$outfileString ./$oval
 else
