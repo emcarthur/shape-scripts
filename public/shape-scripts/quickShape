@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ `ps -e | grep -c $(basename $0)` -gt 2 ]; then echo "Another instance of quickShape is running. Try again later."; exit 0; fi
+#if [ `ps -e | grep -c $(basename $0)` -gt 2 ]; then echo "Another instance of quickShape is running. Try again later."; exit 0; fi
 
 startdir=$(pwd)
 cflag=
@@ -96,55 +96,70 @@ if [ -z "$rflag" ]; then
 	exit
 fi
 
+outfileString="chr"$cval:$rval
+
 if [ -z "$aflag"]; then
 	genomebuild="hg19"
+	outfileString=$outfileString"_hg19"
 	if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ] && [ -z "$hflag" ] && [ -z "$iflag" ] && [ -z "$jflag" ] && [ -z "$kflag" ]; then
 		plus="PR"
 	        minus="MR"
 	        denatured="DC"
+		outfileString=$outfileString"_combinedRefolded"
 	elif [ ! -z "$sflag" ]; then
 	       	plus="PS"
 	        minus="MS"
 	        denatured="DC"
+		outfileString=$outfileString"_combinedSonicated"
 	elif [ ! -z "$yflag" ]; then
 	        plus="19098PR"
 	        minus="19098MR"
 	        denatured="19098DC"
+		outfileString=$outfileString"_19098Refolded"
 	elif [ ! -z "$hflag" ]; then         
 	        plus="NA07037_P"
 	        minus="NA07037_M"
 		denatured="NA07037_DC"
+		outfileString=$outfileString"_NA07037Refolded"
 	elif [ ! -z "$iflag" ]; then
 	        plus="NA07037_PS"
 	        minus="NA07037_MS"
 	        denatured="NA07037_DC"
+		outfileString=$outfileString"_NA07307Sonicated"
 	elif [ ! -z "$jflag" ]; then
 	        plus="NA12003_P"
 	        minus="NA12003_M"
 	        denatured="NA12003_DC"
+		outfileString=$outfileString"_NA12003Refolded"
 	elif [ ! -z "$kflag" ]; then
 	        plus="NA12003_PS"
 	        minus="NA12003_MS"
 	        denatured="NA12003_DC"
+		outfileString=$outfileString"_NA12003Sonicated"
 	elif [ ! -z "$zflag" ]; then
 	        plus="19099PR"
 	        minus="19099MR"
 	        denatured="19099DC"
+		outfileString=$outfileString"_19099Refolded"
 	fi
 else
 	genomebuild="hg38"
+	outfileString=$outfileString"_hg38"
 	if [ ! -z "$yflag" ]; then
                 plus="hg38_STAR_default_19098Plus.Aligned.out"
                 minus="hg38_STAR_default_19098Min.Aligned.out"
                 denatured="hg38_STAR_default_19098DC.Aligned.out"
+		outfileString=$outfileString"_19098Refolded"
         elif [ ! -z "$hflag" ]; then
                 plus="STAR_hg38_07037_PR.Aligned.out"
                 minus="STAR_hg38_07037_MR.Aligned.out"
                 denatured="STAR_hg38_07037_DC.Aligned.out"
+		outfileString=$outfileString"_NA07037Refolded"
         elif [ ! -z "$iflag" ]; then
                 plus="STAR_hg38_07037_PS.Aligned.out"
                 minus="STAR_hg38_07037_MS.Aligned.out"
                 denatured="STAR_hg38_07037_DC.Aligned.out"
+		outfileString=$outfileString"_NA07037Sonicated"
         elif [ ! -z "$jflag" ]; then
 		echo "12003 STAR alignment with hg38 not available yet"
                 exit
@@ -161,65 +176,78 @@ else
                 plus="hg38_STAR_default_19099Plus.Aligned.out"
                 minus="hg38_STAR_default_19099Min.Aligned.out"
                 denatured="hg38_STAR_default_19099DC.Aligned.out"
+		outfileString=$outfileString"_19099Refolded"
         elif [ ! -z "$sflag" ]; then
 		plus="hg38_STAR_default_PS_12003and07037.Aligned.out"
                 minus="hg38_STAR_default_MS_12003and07037.Aligned.out"
                 denatured="hg38_STAR_default_DC_12003and07037.Aligned.out"
+		outfileString=$outfileString"_combinedSonicated"
 	else
 		plus="hg38_STAR_default_PR_12003and07037.Aligned.out"
                 minus="hg38_STAR_default_MR_12003and07037.Aligned.out"
-                denatured="hg38_STAR_default_DC_12003and07037.Aligned.out"	
+                denatured="hg38_STAR_default_DC_12003and07037.Aligned.out"
+		outfileString=$outfileString"_combinedRefolded"	
 	fi
 
 
 fi
 
-mkdir /home/shared/shape-scripts/output/
+if [ -d "/home/shared/shape-scripts/$outfileString/" ]; then
+	echo "A version of this command is already running (or exists in the shape-scripts folder). Exiting.."
+	exit
+else
+	mkdir /home/shared/shape-scripts/$outfileString/
+fi
+
 if [ ! -z "$dflag" ]; then
 
 
 	echo "Calculating depth of chr: $cval pos: $rval ... "
-	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$plus.sorted.bam > /home/shared/shape-scripts/output/$plus.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$plus.sorted.bam > /home/shared/shape-scripts/$outfileString/$plus.depth
 	echo -e "\nPlus depth:"
-	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$plus.depth
+	awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/$outfileString/$plus.depth
 
-	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$minus.sorted.bam > /home/shared/shape-scripts/output/$minus.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$minus.sorted.bam > /home/shared/shape-scripts/$outfileString/$minus.depth
 	echo "Minus depth:"
-        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$minus.depth
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/$outfileString/$minus.depth
 
-	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$denatured.sorted.bam > /home/shared/shape-scripts/output/$denatured.depth
+	samtools depth -r chr$cval:$rval /home/shared/shape-scripts/runFiles/$denatured.sorted.bam > /home/shared/shape-scripts/$outfileString/$denatured.depth
 	echo "Denatured depth:"
-        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/output/$denatured.depth
+        awk '{if(min==""){min=max=$3}; if($3>max) {max=$3}; if($3< min) {min=$3}; total+=$3; count+=1} END {print "  Average: "total/count, "\tMin: " min, "\tMax: " max}' /home/shared/shape-scripts/$outfileString/$denatured.depth
 	
 	echo -e "\nDepth at nucleotide level also output"
 
 else
 	echo "Setting up files to run ShapeMap..."
 	
-	samtools view /home/shared/shape-scripts/runFiles/$plus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outPR.sam
-	samtools view /home/shared/shape-scripts/runFiles/$minus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outMR.sam
-	samtools view /home/shared/shape-scripts/runFiles/$denatured.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/outDC.sam
-
-	cat /home/shared/shape-scripts/outPR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/PR.fastq
-	cat /home/shared/shape-scripts/outMR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/MR.fastq
-	cat /home/shared/shape-scripts/outDC.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/DC.fastq
+	# EXTRACTING LINES IN SAM FILE FROM REGION TO ANOTHER FILE
+	samtools view /home/shared/shape-scripts/runFiles/$plus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/$outfileString/outPR.sam
+	samtools view /home/shared/shape-scripts/runFiles/$minus.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/$outfileString/outMR.sam
+	samtools view /home/shared/shape-scripts/runFiles/$denatured.sorted.bam chr$cval:$rval > /home/shared/shape-scripts/$outfileString/outDC.sam
 	
-	rm /home/shared/shape-scripts/out*.sam
+	# CONVERTING SAM FORMATED LINES TO FASTA FORMAT
+	cat /home/shared/shape-scripts/$outfileString/outPR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/$outfileString/PR.fastq
+	cat /home/shared/shape-scripts/$outfileString/outMR.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/$outfileString/MR.fastq
+	cat /home/shared/shape-scripts/$outfileString/outDC.sam | awk '{print "@"$1"\n"$10"\n+\n"$11}' > /home/shared/shape-scripts/$outfileString/DC.fastq
 	
-	echo ">quickShape" > /home/shared/shape-scripts/quickShape.fa
+	# REMOVE SAMFILE SUBSETS
+	rm /home/shared/shape-scripts/$outfileString/out*.sam
+	
+	# CREATE FASTA FILE
+	echo ">quickShape" > /home/shared/shape-scripts/$outfileString/quickShape.fa
 
 	if [ ! -z "$fflag" ]; then
 		echo "fasta file specified"
-		tail -n +2 $fval >> /home/shared/shape-scripts/quickShape.fa
+		tail -n +2 $fval >> /home/shared/shape-scripts/$outfileString/quickShape.fa
 		
 	else
 		echo "fasta file not specified, creating file from hg19 or hg38 sequence"
-		samtools faidx /home/shared/shape-scripts/runFiles/$genomebuild.fa "chr"$cval:$rval > /home/shared/shape-scripts/tmp.fa
-		tail -n +2 /home/shared/shape-scripts/tmp.fa  >> /home/shared/shape-scripts/quickShape.fa
-		rm /home/shared/shape-scripts/tmp.fa
+		samtools faidx /home/shared/shape-scripts/runFiles/$genomebuild.fa "chr"$cval:$rval > /home/shared/shape-scripts/$outfileString/tmp.fa
+		tail -n +2 /home/shared/shape-scripts/$outfileString/tmp.fa  >> /home/shared/shape-scripts/$outfileString/quickShape.fa
+		rm /home/shared/shape-scripts/$outfileString/tmp.fa
 	fi
 	
-	cd /home/shared/shape-scripts/
+	cd /home/shared/shape-scripts/$outfileString/
 	
 	if [ ! -z "$nflag" ]; then
 		echo "Starting ShapeMap Pipeline without denatured..."
@@ -234,16 +262,17 @@ else
 
 
 	cd $startdir
-	mv /home/shared/shape-scripts/log.txt .
-	rm /home/shared/shape-scripts/temp_config.pickle
-	rm /home/shared/shape-scripts/*.fastq
-	rm /home/shared/shape-scripts/quickShape.fa
+	mv /home/shared/shape-scripts/$outfileString/log.txt .
+	rm /home/shared/shape-scripts/$outfileString/temp_config.pickle
+	rm /home/shared/shape-scripts/$outfileString/*.fastq
+	rm /home/shared/shape-scripts/$outfileString/quickShape.fa
 
 fi
 
+mv /home/shared/shape-scripts/$outfileString/output/* /home/shared/shape-scripts/$outfileString/
+rm -rf /home/shared/shape-scripts/$outfileString/output/
 if [ ! -z "$oflag" ]; then
-	mv /home/shared/shape-scripts/output ./$oval
+	mv /home/shared/shape-scripts/$outfileString ./$oval
 else
-	mv /home/shared/shape-scripts/output ./output
+	mv /home/shared/shape-scripts/$outfileString ./$outfileString
 fi
-
