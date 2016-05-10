@@ -107,17 +107,7 @@ if [ -z "$aflag" ]; then
 	# IF HG19
 	genomebuild="hg19"
 	outfileString=$outfileString"_hg19"
-	if [ -z "$sflag" ] && [ -z "$yflag" ] && [ -z "$zflag" ] && [ -z "$hflag" ] && [ -z "$iflag" ] && [ -z "$jflag" ] && [ -z "$kflag" ]; then
-		plus="PR"
-	        minus="MR"
-	        denatured="DC"
-		outfileString=$outfileString"_combinedRefolded"
-	elif [ ! -z "$sflag" ]; then
-	       	plus="PS"
-	        minus="MS"
-	        denatured="DC"
-		outfileString=$outfileString"_combinedSonicated"
-	elif [ ! -z "$yflag" ]; then
+	if [ ! -z "$yflag" ]; then
 	        plus="19098PR"
 	        minus="19098MR"
 	        denatured="19098DC"
@@ -147,6 +137,16 @@ if [ -z "$aflag" ]; then
 	        minus="19099MR"
 	        denatured="19099DC"
 		outfileString=$outfileString"_19099Refolded"
+	elif [ ! -z "$sflag" ]; then
+                plus="PS"
+                minus="MS"
+                denatured="DC"
+ 		outfileString=$outfileString"_combinedSonicated"
+	else
+		plus="PR"
+		minus="MR"
+		denatured="DC"
+		outfileString=$outfileString"_combinedRefolded"
 	fi
 else
 	# IF HG38
